@@ -21,13 +21,40 @@ io.on('connection', function (socket) {
   // Handle disconnect event
   socket.on('disconnect', function () {
     serverData.handleDisconnect(socket);
-  })
+  });
+
+  // Handle queue event
+  socket.on('queue', function (args) {
+    serverData.handleQueue(socket, args);
+  });
+
+  // Handle dequeue event
+  socket.on('dequeue', function () {
+    serverData.handleDequeue(socket);
+  });
+
+  // Handle match accepted event
+  socket.on('accept match', function () {
+    serverData.handleMatchAccepted(socket);
+  });
+
+  // Handle match rejected event
+  socket.on('reject match', function () {
+    serverData.handleMatchRejected(socket);
+  });
+
+  // Handle match finished event
+  socket.on('finish match', function () {
+    serverData.handleMatchFinished(socket);
+  });
 });
 
-// Emit the number of online users every 5 seconds
+// Do processing every 10 seconds
 setInterval(function () {
-  io.emit('online users', serverData.onlineUsers);
-}, 5 * 1000);
+  io.emit('online users', serverData.connectedSockets.length);
+  serverData.processMatchmaking();
+  serverData.processMatchTimeouts();
+}, 10 * 1000);
 
 // Start listening
 http.listen(80, function () {
