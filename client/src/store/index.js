@@ -96,7 +96,7 @@ export default new Vuex.Store({
     },
     socket_matchFound(context, matchNotes) {
       context.commit('MATCH_FOUND', matchNotes);
-      var audio = new Audio("http://soundbible.com/grab.php?id=2158&type=wav");
+      var audio = new Audio("https://soundbible.com/grab.php?id=2158&type=wav");
       audio.play();
     },
     socket_matchAccepted(context) {
