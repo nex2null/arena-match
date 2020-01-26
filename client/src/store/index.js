@@ -5,33 +5,30 @@ Vue.use(Vuex)
 
 export default new Vuex.Store({
   state: {
-    messages: [],
-    onlineUsers: 0
+    onlineUsers: 0,
+    connected: false
   },
   mutations: {
-    NEW_MESSAGE(state, message) {
-      state.messages.push(message);
-    },
-    UPDATE_ONLINE_USERS(state, onlineUserCount) {
+    SET_ONLINE_USERS(state, onlineUserCount) {
       state.onlineUsers = onlineUserCount;
+    },
+    SET_CONNECTED(state, connected) {
+      state.connected = connected;
     }
   },
   actions: {
-    socket_chatMessage(context, message) {
-      context.commit('NEW_MESSAGE', message);
-    },
     socket_onlineUsers(context, onlineUserCount) {
-      context.commit('UPDATE_ONLINE_USERS', onlineUserCount);
+      context.commit('SET_ONLINE_USERS', onlineUserCount);
     },
-    sendMessage(context, message) {
-      this._vm.$socket.client.emit('chat message', message);
+    socket_connect(context) {
+      context.commit('SET_CONNECTED', true);
     },
-    login(context, username) {
-      this._vm.$socket.client.emit('login', username);
+    socket_disconnect(context) {
+      context.commit('SET_CONNECTED', false);
     }
   },
   getters: {
-    messages: state => state.messages,
-    onlineUsers: state => state.onlineUsers
+    onlineUsers: state => state.onlineUsers,
+    connected: state => state.connected
   }
 })
