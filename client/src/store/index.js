@@ -5,6 +5,7 @@ Vue.use(Vuex)
 
 export default new Vuex.Store({
   state: {
+    lastQueueArgs: null,
     onlineUsers: 0,
     connected: false,
     inQueue: false,
@@ -63,7 +64,7 @@ export default new Vuex.Store({
     },
     MATCH_TIMEOUT(state) {
       if (state.match) {
-        state.matchEndReason = 'Timed out waiting for accept';
+        state.matchEndReason = 'Match timed out waiting for accept';
         state.match = null;
       }
     },
@@ -72,6 +73,9 @@ export default new Vuex.Store({
         state.matchEndReason = 'Match finished successfully';
         state.match = null;
       }
+    },
+    SET_QUEUE_ARGS(state, args) {
+      state.lastQueueArgs = args;
     }
   },
   actions: {
@@ -115,6 +119,7 @@ export default new Vuex.Store({
     },
     queue(context, args) {
       this._vm.$socket.client.emit('queue', args);
+      context.commit('SET_QUEUE_ARGS', args);
     },
     dequeue() {
       this._vm.$socket.client.emit('dequeue');
@@ -134,6 +139,7 @@ export default new Vuex.Store({
     connected: state => state.connected,
     inQueue: state => state.inQueue,
     match: state => state.match,
-    matchEndReason: state => state.matchEndReason
+    matchEndReason: state => state.matchEndReason,
+    lastQueueArgs: state => state.lastQueueArgs
   }
 })
