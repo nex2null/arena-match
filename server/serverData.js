@@ -1,7 +1,6 @@
 // Imports
 var _ = require('lodash');
-var QueueRequest = require('./queueRequest').QueueRequest;
-var ActiveMatch = require('./activeMatch').ActiveMatch;
+var Match = require('./Match').Match;
 
 //
 // Handles server data and matchmaking processing
@@ -11,10 +10,10 @@ class ServerData {
   //
   // Constructor
   //
-  constructor() {
+  constructor(io) {
+    this.io = io;
     this.connectedSockets = [];
-    this.queueRequests = [];
-    this.activeMatches = [];
+    this.matches = [];
   }
 
   //
@@ -23,6 +22,7 @@ class ServerData {
   handleConnect(socket) {
     this.connectedSockets.push(socket);
     socket.emit('online users', this.connectedSockets.length);
+    //socket.emit('sync all matches', this.getPendingMatches());
   }
 
   //
@@ -30,47 +30,60 @@ class ServerData {
   //
   handleDisconnect(socket) {
     _.pull(this.connectedSockets, socket);
-    this.handleDequeue(socket);
+
+    // Kill anything that socket may have been doing
+    this.handleMatchCancel(socket);
   }
 
   //
-  // Handles a client queueing
+  // Handles a match being created
   //
-  handleQueue(socket, args) {
+  handleMatchCreate(socket, matchArgs) {
 
-    // Make sure we don't currently have this socket queued
-    if (this.queueRequests.find(x => x.socket == socket))
+    // Make sure we don't already have a match with this socket in it
+    if (this.matches.find(x => x.containsSocket(socket)))
       return;
 
-    // Create a new queue request
-    var queueRequest = new QueueRequest(
+    // Create a new match
+    var match = new Match(
       socket,
-      args.username,
-      args.format,
-      args.standardOnly,
-      args.matchNotes);
+      matchArgs.username,
+      matchArgs.format,
+      matchArgs.standardOnly,
+      matchArgs.matchNotes);
 
-    // Add to the active requests
-    this.queueRequests.push(queueRequest);
+    // Add to the active matches
+    this.matches.push(match);
 
-    // Mark that the socket is queued
-    socket.emit('queued');
+    // Mark to the user their match has been created
+    socket.emit('match created', match.id);
+
+    // Broadcast the match add
+    this.io.emit('add match', match.toBroadcastFormat());
   }
 
   //
-  // Handles a client dequeueing
+  // Handles a match being cancelled
   //
-  handleDequeue(socket) {
+  handleMatchCancel(socket) {
 
-    // If there was a queue request for the socket, remove it
-    var queueRequest = this.queueRequests.find(x => x.socket == socket);
-    if (queueRequest) {
-      queueRequest.socket.emit('dequeued');
-      _.pull(this.queueRequests, queueRequest);
-    }
+    // Find the match
+    var match = this.matches.find(x => x.createdBySocket(socket));
+    if (!match)
+      return;
 
-    // If there was a match for the socket, reject it
-    this.handleMatchRejected(socket);
+    // If the match cannot be cancelled then do nothing
+    if (!match.canBeCancelled())
+      return;
+
+    // Remove the match from the list of matches
+    _.pull(this.matches, match);
+
+    // Let the user know the match has been cancelled
+    socket.emit('match cancelled');
+
+    // Broadcast the match remove
+    this.io.emit('remove match', match.id);
   }
 
   //
@@ -165,6 +178,25 @@ class ServerData {
 
     // Remove the timed out matches
     timedOutMatches.forEach(x => _.pull(this.activeMatches, x));
+  }
+
+  //
+  // Syncs all matches in case clients didn't receive one
+  //
+  doMatchSync() {
+    this.io.emit('sync all matches', this.getPendingMatches());
+  }
+
+  //
+  // Gets the pending matches
+  //
+  getPendingMatches() {
+
+    // Grab all the pending matches
+    var pendingMatches = this.matches.filter(x => !x.matchBegun);
+
+    // Return them in their broadcast form
+    return pendingMatches.map(x => x.toBroadcastFormat());
   }
 }
 
