@@ -31,6 +31,7 @@
             <option>Artisan</option>
             <option>Brawl</option>
             <option>Pauper</option>
+            <option>Prismatic</option>
             <option>Singleton</option>
           </select>
         </div>
