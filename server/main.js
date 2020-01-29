@@ -33,28 +33,34 @@ io.on('connection', function (socket) {
     serverData.handleMatchCancel(socket);
   });
 
-  // // Handle match accepted event
-  // socket.on('accept match', function () {
-  //   serverData.handleMatchAccepted(socket);
-  // });
+  // Handle a match being joined
+  socket.on('join match', function (joinArgs) {
+    serverData.handleMatchJoin(socket, joinArgs.matchId, joinArgs.username);
+  })
 
-  // // Handle match rejected event
-  // socket.on('reject match', function () {
-  //   serverData.handleMatchRejected(socket);
-  // });
+  // Handle match accepted event
+  socket.on('accept match', function () {
+    serverData.handleMatchAccepted(socket);
+  });
 
-  // // Handle match finished event
-  // socket.on('finish match', function () {
-  //   serverData.handleMatchFinished(socket);
-  // });
+  // Handle match rejected event
+  socket.on('reject match', function () {
+    serverData.handleMatchRejected(socket);
+  });
+
+  // Handle match finished event
+  socket.on('finish match', function () {
+    serverData.handleMatchFinished(socket);
+  });
 });
 
-// Sync matches every 10 seconds
+// Process every 15 seconds
 setInterval(function () {
+  io.emit('online users', serverData.connectedSockets.length);
   serverData.doMatchSync();
-  // serverData.processMatchmaking();
-  // serverData.processMatchTimeouts();
-}, 10 * 1000);
+  serverData.processMatchTimeouts();
+  serverData.cleanUpDisconnects();
+}, 15 * 1000);
 
 // Start listening
 http.listen(80, function () {

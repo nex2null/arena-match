@@ -27,11 +27,11 @@ class Match {
   //
   // Handles the match being joined
   //
-  handleJoin(opponentSocket, opponentUsername) {
+  handleJoin(io, opponentSocket, opponentUsername) {
 
     // If this match has already been joined then do nothing
     if (this.opponentSocket != null)
-      return false;
+      return;
 
     // Set the opponent
     this.opponentSocket = opponentSocket;
@@ -42,13 +42,15 @@ class Match {
     [this.hostSocket, this.opponentSocket].forEach(socket =>
       socket.emit('match joined'));
 
-    return true;
+    // Broadcast that the match is not able to be joined
+    this.joinEnabled = false;
+    io.emit('disable match join', this.id);
   }
 
   //
   // Handles the match being accepted
   //
-  handleAccept(socket) {
+  handleAccept(io, socket) {
 
     // Figure out which person accepted
     if (this.hostSocket == socket) {
@@ -62,22 +64,37 @@ class Match {
       this.hostSocket.emit('opponent accepted');
     }
 
-    // If both users have accepted then send the match accepted event with the opposing username
+    // If both users have accepted then handle match begin
     if (this.hostAccepted && this.opponentAccepted) {
-      this.hostSocket.emit('match begin', this.opponentUsername);
-      this.opponentSocket.emit('match begin', this.hostUsername);
-      this.matchBegun = true;
+      this.handleBegin(io);
     }
+  }
+
+  //
+  // Handles the match beginning
+  //
+  handleBegin(io) {
+
+    // Send the match begun events
+    this.matchBegun = true;
+    this.hostSocket.emit('match begin', this.opponentUsername);
+    this.opponentSocket.emit('match begin', this.hostUsername);
+
+    // Remove this match from the matches list
+    io.emit('remove match', this.id);
   }
 
   //
   // Handles the match being rejected
   //
-  handleReject() {
+  handleReject(io) {
 
     // Notify each person the match was rejected
     [this.hostSocket, this.opponentSocket].forEach(
       socket => socket.emit('match rejected'));
+
+    // Reset the match
+    this.resetMatch(io);
   }
 
   //
@@ -93,11 +110,32 @@ class Match {
   //
   // Handles the match timing out
   //
-  handleTimeout() {
+  handleTimeout(io) {
 
     // Notify each person the match timed out
     [this.hostSocket, this.opponentSocket].forEach(
       socket => socket.emit('match timeout'));
+
+    // Reset the match
+    this.resetMatch(io);
+  }
+
+  //
+  // Resets the match back to its start state
+  //
+  resetMatch(io) {
+
+    // Set the match properties
+    this.opponentSocket = null;
+    this.opponentUsername = null;
+    this.opponentJoinedTime = null;
+    this.hostAccepted = false;
+    this.opponentAccepted = false;
+    this.joinEnabled = true;
+    this.matchBegun = false;
+
+    // Broadcast that the match is eligible to be joined
+    io.emit('enable match join', this.id);
   }
 
   //
@@ -115,10 +153,10 @@ class Match {
   }
 
   //
-  // Determine if this match can be cancelled
+  // Determine if this match can be joined
   //
-  canBeCancelled() {
-    return this.opponentSocket == null;
+  canBeJoined(socket) {
+    return this.opponentSocket == null && this.hostSocket != socket;
   }
 
   //

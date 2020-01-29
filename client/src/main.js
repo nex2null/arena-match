@@ -5,8 +5,8 @@ import store from './store'
 import VueSocketIOExt from 'vue-socket.io-extended';
 import io from 'socket.io-client';
 
-//const socket = io('https://www.arenamatch.net');
-const socket = io('http://localhost');
+const socket = io('https://www.arenamatchlobby.azurewebsites.net');
+//const socket = io('http://localhost');
 
 Vue.use(VueSocketIOExt, socket, { store });
 

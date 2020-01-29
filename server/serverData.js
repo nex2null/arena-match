@@ -14,6 +14,7 @@ class ServerData {
     this.io = io;
     this.connectedSockets = [];
     this.matches = [];
+    this.begunMatches = [];
   }
 
   //
@@ -22,7 +23,7 @@ class ServerData {
   handleConnect(socket) {
     this.connectedSockets.push(socket);
     socket.emit('online users', this.connectedSockets.length);
-    //socket.emit('sync all matches', this.getPendingMatches());
+    socket.emit('sync all matches', this.getPendingMatches());
   }
 
   //
@@ -33,6 +34,8 @@ class ServerData {
 
     // Kill anything that socket may have been doing
     this.handleMatchCancel(socket);
+    this.handleMatchRejected(socket);
+    this.handleMatchFinished(socket);
   }
 
   //
@@ -72,9 +75,9 @@ class ServerData {
     if (!match)
       return;
 
-    // If the match cannot be cancelled then do nothing
-    if (!match.canBeCancelled())
-      return;
+    // If the match has an opponent then reject it
+    if (match.opponentSocket != null)
+      match.handleReject(this.io);
 
     // Remove the match from the list of matches
     _.pull(this.matches, match);
@@ -87,13 +90,46 @@ class ServerData {
   }
 
   //
+  // Handles a match being joined
+  //
+  handleMatchJoin(socket, matchId, username) {
+
+    // If the user has created a match they can't join another
+    var currentMatch = this.matches.find(x => x.createdBySocket(socket));
+    if (currentMatch)
+      return;
+
+    // Find the match
+    var match = this.matches.find(x => x.id == matchId);
+    if (!match)
+      return;
+
+    // Ensure it can be joined
+    if (!match.canBeJoined(socket))
+      return;
+
+    // Join the match
+    match.handleJoin(this.io, socket, username);
+  }
+
+  //
   // Handles a match being accepted
   //
   handleMatchAccepted(socket) {
 
-    var activeMatch = this.activeMatches.find(x => x.containsSocket(socket));
-    if (activeMatch)
-      activeMatch.handleAccept(socket);
+    // Grab the match
+    var match = this.matches.find(x => x.containsSocket(socket));
+    if (!match)
+      return;
+
+    // Handle the match accept
+    match.handleAccept(this.io, socket);
+
+    // If the match began, then move it to the begun matches list
+    if (match.matchBegun) {
+      _.pull(this.matches, match);
+      this.begunMatches.push(match);
+    }
   }
 
   //
@@ -101,10 +137,9 @@ class ServerData {
   //
   handleMatchRejected(socket) {
 
-    var activeMatch = this.activeMatches.find(x => x.containsSocket(socket));
-    if (activeMatch) {
-      activeMatch.handleReject();
-      _.pull(this.activeMatches, activeMatch);
+    var match = this.matches.find(x => x.containsSocket(socket));
+    if (match) {
+      match.handleReject(this.io);
     }
   }
 
@@ -113,52 +148,11 @@ class ServerData {
   //
   handleMatchFinished(socket) {
 
-    var activeMatch = this.activeMatches.find(x => x.containsSocket(socket));
-    if (activeMatch) {
-      activeMatch.handleFinished();
-      _.pull(this.activeMatches, activeMatch);
+    var match = this.begunMatches.find(x => x.containsSocket(socket));
+    if (match) {
+      match.handleFinished();
+      _.pull(this.begunMatches, match);
     }
-  }
-
-  //
-  // Processes matchmaking
-  //
-  processMatchmaking() {
-
-    // Keep track of the processed requests
-    var processedRequests = [];
-
-    // Loop through all the queue requests and try to find its match
-    this.queueRequests.forEach(queueRequest => {
-
-      // If this request has aleady been processed then skip
-      if (processedRequests.includes(queueRequest))
-        return;
-
-      // Find a queue request matching the standard only flag, and format
-      // that isn't the queue request we are currently looking for
-      var opponentQueueRequest = this.queueRequests.find(x =>
-        !processedRequests.includes(x) &&
-        x.format == queueRequest.format &&
-        x.standardOnly == queueRequest.standardOnly &&
-        x != queueRequest);
-
-      // If we found an opponent then process the match
-      if (opponentQueueRequest) {
-
-        // Create the match and send starting events
-        var activeMatch = new ActiveMatch(queueRequest, opponentQueueRequest);
-        activeMatch.sendMatchFoundEvents();
-        this.activeMatches.push(activeMatch);
-
-        // Mark that each request has been processed
-        processedRequests.push(queueRequest);
-        processedRequests.push(opponentQueueRequest);
-      }
-    });
-
-    // Remove queue requests for all processed requests
-    processedRequests.forEach(x => _.pull(this.queueRequests, x));
   }
 
   //
@@ -168,16 +162,26 @@ class ServerData {
 
     // Grab the timed out matches
     var currentTime = Date.now();
-    var timeOutInSeconds = 60;
-    var timedOutMatches = this.activeMatches.filter(x =>
+    var timeout = 45 * 1000;
+    var timedOutMatches = this.matches.filter(x =>
       !x.matchBegun &&
-      (currentTime - x.matchStartTime) > (timeOutInSeconds * 1000));
+      x.opponentJoinedTime != null &&
+      (currentTime - x.opponentJoinedTime) > timeout);
 
     // Send the timeout events
-    timedOutMatches.forEach(x => x.handleTimeout());
+    timedOutMatches.forEach(x => x.handleTimeout(this.io));
+  }
 
-    // Remove the timed out matches
-    timedOutMatches.forEach(x => _.pull(this.activeMatches, x));
+  //
+  // Clean up disconnected matches, just in case
+  //
+  cleanUpDisconnects() {
+
+    // Get all matches with a disconnected host
+    var disconnectedMatches = this.matches.filter(x => !x.hostSocket.connected);
+
+    // Cancel every match that has disconnected
+    disconnectedMatches.forEach(x => this.handleMatchCancel(x.hostSocket));
   }
 
   //

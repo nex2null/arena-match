@@ -1,6 +1,7 @@
 import Vue from 'vue'
 import Vuex from 'vuex'
 var _ = require('lodash');
+var audio = new Audio("https://soundbible.com/grab.php?id=2158&type=wav");
 
 Vue.use(Vuex)
 
@@ -25,6 +26,7 @@ export default new Vuex.Store({
       state.connected = connected;
       if (!connected) {
         state.matchCreated = false;
+        state.yourMatchId = null;
         state.matches = [];
         if (state.activeMatch) {
           state.matchEndReason = 'Match ended due to disconnect';
@@ -38,9 +40,12 @@ export default new Vuex.Store({
       state.yourMatchId = matchId;
     },
     MATCH_CANCELLED(state) {
+      state.matchEndReason = '';
       state.matchCreated = false;
+      state.yourMatchId = null;
     },
     MATCH_JOINED(state) {
+      state.matchEndReason = '';
       state.activeMatch = {
         youAccepted: false,
         opponentAccepted: false,
@@ -93,10 +98,10 @@ export default new Vuex.Store({
         state.matchEndReason = '';
       }
     },
-    SET_MATCH_JOIN_ENABLED(state, matchId, enabled) {
-      var match = state.matches.find(x => x.id == matchId);
+    SET_MATCH_JOIN_ENABLED(state, args) {
+      var match = state.matches.find(x => x.id == args.matchId);
       if (match) {
-        match.joinEnabled = enabled;
+        match.joinEnabled = args.enabled;
       }
     },
     REMOVE_MATCH(state, matchId) {
@@ -132,6 +137,9 @@ export default new Vuex.Store({
     },
     socket_matchJoined(context) {
       context.commit('MATCH_JOINED');
+      if (!document.hasFocus()) {
+        audio.play();
+      }
     },
     socket_matchAccepted(context) {
       context.commit('MATCH_ACCEPTED');
@@ -158,10 +166,16 @@ export default new Vuex.Store({
       context.commit('ADD_MATCH', match);
     },
     socket_disableMatchJoin(context, matchId) {
-      context.commit('SET_MATCH_JOIN_ENABLED', matchId, false);
+      context.commit('SET_MATCH_JOIN_ENABLED', {
+        matchId: matchId,
+        enabled: false
+      });
     },
     socket_enableMatchJoin(context, matchId) {
-      context.commit('SET_MATCH_JOIN_ENABLED', matchId, true);
+      context.commit('SET_MATCH_JOIN_ENABLED', {
+        matchId: matchId,
+        enabled: true
+      });
     },
     socket_syncAllMatches(context, matches) {
       context.commit('SET_MATCHES', matches);
@@ -179,8 +193,11 @@ export default new Vuex.Store({
     cancelMatch() {
       this._vm.$socket.client.emit('cancel match');
     },
-    joinMatch(matchId) {
-      this._vm.$socket.client.emit('join match', matchId)
+    joinMatch(context, matchId) {
+      this._vm.$socket.client.emit('join match', {
+        matchId: matchId,
+        username: context.getters.username
+      })
     },
     acceptMatch() {
       this._vm.$socket.client.emit('accept match');
@@ -204,6 +221,7 @@ export default new Vuex.Store({
     matchCreating: state => state.matchCreating,
     matchCreated: state => state.matchCreated,
     matches: state => state.matches,
-    username: state => state.username
+    username: state => state.username,
+    yourMatchId: state => state.yourMatchId
   }
 })
