@@ -1,6 +1,6 @@
 // Imports
 var _ = require('lodash');
-var Match = require('./Match').Match;
+var Match = require('./match').Match;
 
 //
 // Handles server data and matchmaking processing
