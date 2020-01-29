@@ -13,6 +13,13 @@
         </div>
         <div style="margin-top:20px;">
           <div>There are {{ onlineUsers }} users currently online</div>
+          <div>
+            Help test
+            <a
+              href="https://arenamatchlobby.azurewebsites.net"
+              target="_"
+            >ArenaMatch Lobby!</a>
+          </div>
           <div v-if="!connected">Connection lost. Attempting to reconnect...</div>
         </div>
       </div>
