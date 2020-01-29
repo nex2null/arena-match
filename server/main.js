@@ -25,6 +25,12 @@ io.on('connection', function (socket) {
 
   // Handle a match being created
   socket.on('create match', function (matchArgs) {
+
+    // Make sure match notes aren't too long
+    if (matchArgs.matchNotes && matchArgs.matchNotes.length > 50)
+      return;
+
+    // Create the match
     serverData.handleMatchCreate(socket, matchArgs);
   });
 

@@ -27,7 +27,7 @@
         </div>
         <div class="form-group">
           <label class="form-label" for="input-match-notes">Match Notes</label>
-          <input class="form-input" type="text" id="input-match-notes" v-model="matchNotes" />
+          <input class="form-input" type="text" id="input-match-notes" v-model="matchNotes" maxlength="50" />
         </div>
         <div class="form-group pt-2">
           <button class="btn p-centered" @click="create()">Create</button>
