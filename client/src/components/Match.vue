@@ -1,28 +1,27 @@
 <template>
   <div>
-    <div v-if="!match.matchBegun">
+    <div v-if="!activeMatch.matchBegun">
       <form class="form-horizontal" v-on:submit.prevent>
         <div class="form-group">
-          <h5 class="p-centered">Match Found!</h5>
-        </div>
-        <div class="form-group" v-if="match.opponentMatchNotes">
-          <h6 class="p-centered">Opponent Match Notes: {{ match.opponentMatchNotes }}</h6>
+          <h5 class="p-centered">Match Joined!</h5>
         </div>
         <div class="form-group">
-          <h6 class="p-centered">You Accepted: {{ match.youAccepted ? "Yes" : "No" }}</h6>
+          <h6 class="p-centered">You Accepted: {{ activeMatch.youAccepted ? "Yes" : "No" }}</h6>
         </div>
         <div class="form-group">
-          <h6 class="p-centered">Opponent Accepted: {{ match.opponentAccepted ? "Yes" : "No" }}</h6>
+          <h6
+            class="p-centered"
+          >Opponent Accepted: {{ activeMatch.opponentAccepted ? "Yes" : "No" }}</h6>
         </div>
         <div class="form-group pt-2">
           <button
             class="btn p-centered btn-lg"
-            v-if="!match.youAccepted"
+            v-if="!activeMatch.youAccepted"
             @click="acceptMatch()"
           >Accept Match</button>
           <button
             class="btn p-centered btn-lg"
-            v-if="!match.youAccepted"
+            v-if="!activeMatch.youAccepted"
             @click="rejectMatch()"
           >Reject Match</button>
         </div>
@@ -40,7 +39,7 @@
               class="form-input"
               type="text"
               id="input-opp-username"
-              v-model="match.opponentUsername"
+              v-model="activeMatch.opponentUsername"
             />
             <button class="btn input-group-btn" @click="copyUsername()">Copy</button>
           </div>
@@ -59,7 +58,7 @@ import { mapGetters } from "vuex";
 export default {
   name: "Match",
   computed: {
-    ...mapGetters(["match"])
+    ...mapGetters(["activeMatch"])
   },
   methods: {
     acceptMatch: function() {

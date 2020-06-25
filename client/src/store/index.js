@@ -1,15 +1,21 @@
 import Vue from 'vue'
 import Vuex from 'vuex'
+var _ = require('lodash');
+var audio = new Audio("https://soundbible.com/grab.php?id=2158&type=wav");
 
 Vue.use(Vuex)
 
 export default new Vuex.Store({
   state: {
-    lastQueueArgs: null,
+    username: '',
     onlineUsers: 0,
     connected: false,
-    inQueue: false,
-    match: null,
+    matches: [],
+    matchCreating: false,
+    matchCreated: false,
+    yourMatchId: null,
+    activeMatch: null,
+    lastMatchArgs: null,
     matchEndReason: ''
   },
   mutations: {
@@ -19,63 +25,98 @@ export default new Vuex.Store({
     SET_CONNECTED(state, connected) {
       state.connected = connected;
       if (!connected) {
-        state.inQueue = false;
-        if (state.match) {
-          state.matchEndReason = 'Disconnected';
-          state.match = null;
+        state.matchCreated = false;
+        state.yourMatchId = null;
+        state.matches = [];
+        if (state.activeMatch) {
+          state.matchEndReason = 'Match ended due to disconnect';
+          state.activeMatch = null;
         }
       }
     },
-    SET_IN_QUEUE(state, inQueue) {
-      state.inQueue = inQueue;
-      state.matchEndReason = '';
+    MATCH_CREATED(state, matchId) {
+      state.matchCreated = true;
+      state.matchCreating = false;
+      state.yourMatchId = matchId;
     },
-    MATCH_FOUND(state, matchNotes) {
-      state.inQueue = false;
-      state.match = {
+    MATCH_CANCELLED(state) {
+      state.matchEndReason = '';
+      state.matchCreated = false;
+      state.yourMatchId = null;
+    },
+    MATCH_JOINED(state) {
+      state.matchEndReason = '';
+      state.activeMatch = {
         youAccepted: false,
         opponentAccepted: false,
-        opponentMatchNotes: matchNotes,
         opponentUsername: '',
         matchBegun: false
       }
     },
     MATCH_ACCEPTED(state) {
-      if (state.match) {
-        state.match.youAccepted = true;
+      if (state.activeMatch) {
+        state.activeMatch.youAccepted = true;
       }
     },
     OPPONENT_ACCEPTED(state) {
-      if (state.match) {
-        state.match.opponentAccepted = true;
+      if (state.activeMatch) {
+        state.activeMatch.opponentAccepted = true;
       }
     },
     MATCH_BEGIN(state, opponentUsername) {
-      if (state.match) {
-        state.match.opponentUsername = opponentUsername;
-        state.match.matchBegun = true;
+      state.matchCreated = false;
+      state.yourMatchId = null;
+      if (state.activeMatch) {
+        state.activeMatch.opponentUsername = opponentUsername;
+        state.activeMatch.matchBegun = true;
       }
     },
     MATCH_REJECTED(state) {
-      if (state.match) {
+      if (state.activeMatch) {
         state.matchEndReason = 'Match rejected';
-        state.match = null;
+        state.activeMatch = null;
       }
     },
     MATCH_TIMEOUT(state) {
-      if (state.match) {
+      if (state.activeMatch) {
+        state.activeMatch = null;
         state.matchEndReason = 'Match timed out waiting for accept';
-        state.match = null;
       }
     },
     MATCH_FINISHED(state) {
-      if (state.match) {
+      if (state.activeMatch) {
+        state.activeMatch = null;
         state.matchEndReason = 'Match finished successfully';
-        state.match = null;
       }
     },
-    SET_QUEUE_ARGS(state, args) {
-      state.lastQueueArgs = args;
+    SET_MATCH_ARGS(state, matchArgs) {
+      state.lastMatchArgs = matchArgs;
+    },
+    SET_MATCH_CREATING(state, matchCreating) {
+      state.matchCreating = matchCreating;
+      if (matchCreating) {
+        state.matchEndReason = '';
+      }
+    },
+    SET_MATCH_JOIN_ENABLED(state, args) {
+      var match = state.matches.find(x => x.id == args.matchId);
+      if (match) {
+        match.joinEnabled = args.enabled;
+      }
+    },
+    REMOVE_MATCH(state, matchId) {
+      state.matches = _.reject(state.matches, {
+        'id': matchId
+      });
+    },
+    ADD_MATCH(state, match) {
+      state.matches.push(match);
+    },
+    SET_USERNAME(state, username) {
+      state.username = username;
+    },
+    SET_MATCHES(state, matches) {
+      state.matches = matches;
     }
   },
   actions: {
@@ -88,16 +129,17 @@ export default new Vuex.Store({
     socket_disconnect(context) {
       context.commit('SET_CONNECTED', false);
     },
-    socket_queued(context) {
-      context.commit('SET_IN_QUEUE', true);
+    socket_matchCreated(context, matchId) {
+      context.commit('MATCH_CREATED', matchId);
     },
-    socket_dequeued(context) {
-      context.commit('SET_IN_QUEUE', false);
+    socket_matchCancelled(context) {
+      context.commit('MATCH_CANCELLED');
     },
-    socket_matchFound(context, matchNotes) {
-      context.commit('MATCH_FOUND', matchNotes);
-      var audio = new Audio("https://soundbible.com/grab.php?id=2158&type=wav");
-      audio.play();
+    socket_matchJoined(context) {
+      context.commit('MATCH_JOINED');
+      if (!document.hasFocus()) {
+        audio.play();
+      }
     },
     socket_matchAccepted(context) {
       context.commit('MATCH_ACCEPTED');
@@ -117,12 +159,45 @@ export default new Vuex.Store({
     socket_matchFinished(context) {
       context.commit('MATCH_FINISHED');
     },
-    queue(context, args) {
-      this._vm.$socket.client.emit('queue', args);
-      context.commit('SET_QUEUE_ARGS', args);
+    socket_removeMatch(context, matchId) {
+      context.commit('REMOVE_MATCH', matchId)
     },
-    dequeue() {
-      this._vm.$socket.client.emit('dequeue');
+    socket_addMatch(context, match) {
+      context.commit('ADD_MATCH', match);
+    },
+    socket_disableMatchJoin(context, matchId) {
+      context.commit('SET_MATCH_JOIN_ENABLED', {
+        matchId: matchId,
+        enabled: false
+      });
+    },
+    socket_enableMatchJoin(context, matchId) {
+      context.commit('SET_MATCH_JOIN_ENABLED', {
+        matchId: matchId,
+        enabled: true
+      });
+    },
+    socket_syncAllMatches(context, matches) {
+      context.commit('SET_MATCHES', matches);
+    },
+    startMatchCreate(context) {
+      context.commit('SET_MATCH_CREATING', true);
+    },
+    cancelMatchCreate(context) {
+      context.commit('SET_MATCH_CREATING', false);
+    },
+    createMatch(context, args) {
+      this._vm.$socket.client.emit('create match', args);
+      context.commit('SET_MATCH_ARGS', args);
+    },
+    cancelMatch() {
+      this._vm.$socket.client.emit('cancel match');
+    },
+    joinMatch(context, matchId) {
+      this._vm.$socket.client.emit('join match', {
+        matchId: matchId,
+        username: context.getters.username
+      })
     },
     acceptMatch() {
       this._vm.$socket.client.emit('accept match');
@@ -132,14 +207,21 @@ export default new Vuex.Store({
     },
     finishMatch() {
       this._vm.$socket.client.emit('finish match');
+    },
+    setUsername(context, username) {
+      context.commit('SET_USERNAME', username)
     }
   },
   getters: {
     onlineUsers: state => state.onlineUsers,
     connected: state => state.connected,
-    inQueue: state => state.inQueue,
-    match: state => state.match,
+    activeMatch: state => state.activeMatch,
     matchEndReason: state => state.matchEndReason,
-    lastQueueArgs: state => state.lastQueueArgs
+    lastMatchArgs: state => state.lastMatchArgs,
+    matchCreating: state => state.matchCreating,
+    matchCreated: state => state.matchCreated,
+    matches: state => state.matches,
+    username: state => state.username,
+    yourMatchId: state => state.yourMatchId
   }
 })

@@ -10,7 +10,7 @@ const staticFileMiddleware = express.static('dist');
 app.use(staticFileMiddleware);
 
 // Instantiate server data
-var serverData = new ServerData();
+var serverData = new ServerData(io);
 
 // Handle socket.io connections and register event handlers
 io.on('connection', function (socket) {
@@ -23,15 +23,26 @@ io.on('connection', function (socket) {
     serverData.handleDisconnect(socket);
   });
 
-  // Handle queue event
-  socket.on('queue', function (args) {
-    serverData.handleQueue(socket, args);
+  // Handle a match being created
+  socket.on('create match', function (matchArgs) {
+
+    // Make sure match notes aren't too long
+    if (matchArgs.matchNotes && matchArgs.matchNotes.length > 50)
+      return;
+
+    // Create the match
+    serverData.handleMatchCreate(socket, matchArgs);
   });
 
-  // Handle dequeue event
-  socket.on('dequeue', function () {
-    serverData.handleDequeue(socket);
+  // Handle a match being cancelled
+  socket.on('cancel match', function () {
+    serverData.handleMatchCancel(socket);
   });
+
+  // Handle a match being joined
+  socket.on('join match', function (joinArgs) {
+    serverData.handleMatchJoin(socket, joinArgs.matchId, joinArgs.username);
+  })
 
   // Handle match accepted event
   socket.on('accept match', function () {
@@ -49,12 +60,13 @@ io.on('connection', function (socket) {
   });
 });
 
-// Do processing every 10 seconds
+// Process every 15 seconds
 setInterval(function () {
   io.emit('online users', serverData.connectedSockets.length);
-  serverData.processMatchmaking();
+  serverData.doMatchSync();
   serverData.processMatchTimeouts();
-}, 10 * 1000);
+  serverData.cleanUpDisconnects();
+}, 15 * 1000);
 
 // Start listening
 http.listen(80, function () {

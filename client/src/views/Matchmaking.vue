@@ -1,25 +1,26 @@
 <template>
   <div class="container pt-2">
     <div class="columns">
-      <div class="column p-centered col-xs-12 col-sm-10 col md-8 col-lg-6 col-3">
-        <div v-if="matchEndReason">
-          <h5 class="p-centered">{{ matchEndReason }}</h5>
+      <div v-if="!username" class="column p-centered col-xs-12 col-sm-10 col md-8 col-lg-6 col-3">
+        <Username />
+      </div>
+      <div v-if="username" class="column p-centered col-xs-12 col-sm-10 col md-8 col-lg-6 col-3">
+        <!-- <div v-if="matchEndReason">
+          <h6 class="p-centered">{{ matchEndReason }}</h6>
+        </div>-->
+        <div v-if="!activeMatch">
+          <CreateMatch />
         </div>
-        <div v-if="!match">
-          <Queue />
+        <div v-if="!activeMatch && !matchCreating">
+          <MatchList />
         </div>
-        <div v-if="match">
+        <div v-if="activeMatch">
           <Match />
         </div>
-        <div style="margin-top:20px;">
-          <div>There are {{ onlineUsers }} users currently online</div>
-          <div>
-            Help test
-            <a
-              href="https://arenamatchlobby.azurewebsites.net"
-              target="_"
-            >ArenaMatch Lobby!</a>
-          </div>
+        <div style="margin-top:50px;">
+          <div class="divider"></div>
+          <div v-if="connected">Logged in as {{ username }}</div>
+          <div v-if="connected">There are {{ onlineUsers }} users currently online</div>
           <div v-if="!connected">Connection lost. Attempting to reconnect...</div>
         </div>
       </div>
@@ -28,18 +29,31 @@
 </template>
 
 <script>
-import Queue from "@/components/Queue.vue";
+import CreateMatch from "@/components/CreateMatch.vue";
+import MatchList from "@/components/MatchList.vue";
+import Username from "@/components/Username.vue";
 import Match from "@/components/Match.vue";
+
 import { mapGetters } from "vuex";
 
 export default {
   name: "Matchmaking",
   components: {
-    Queue,
+    CreateMatch,
+    MatchList,
+    Username,
     Match
   },
   computed: {
-    ...mapGetters(["onlineUsers", "connected", "match", "matchEndReason"])
+    ...mapGetters([
+      "onlineUsers",
+      "connected",
+      "matchCreating",
+      "matchCreated",
+      "activeMatch",
+      "username",
+      "matchEndReason"
+    ])
   }
 };
 </script>
