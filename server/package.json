@@ -4,7 +4,7 @@
   "description": "Attempts were made",
   "dependencies": {
     "express": "^4.17.1",
-    "lodash": "^4.17.15",
+    "lodash": "^4.17.21",
     "socket.io": "^2.3.0",
     "uuid": "^3.4.0"
   }
